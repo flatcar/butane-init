@@ -1,5 +1,5 @@
 #cloud-config
-# Cluster API renders additional groups as one comma-separated scalar.
+# This deliberately repeats the primary group as a supplementary group.
 users:
   - name: foo
     groups: "foo, bar"

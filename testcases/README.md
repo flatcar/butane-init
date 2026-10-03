@@ -19,6 +19,6 @@ boundary.
 
 | Fixture | Purpose | Current result |
 | --- | --- | --- |
-| `cluster-api-supported-user.yaml` | Every currently supported user field | Success |
-| `cluster-api-groups.yaml` | Cluster API's comma-separated groups and primary group | Rejected until group support lands |
-| `cluster-api-deferred-fields.yaml` | Remaining rendered account-policy fields | Rejected as unsupported |
+| `cluster-api-supported-user.yaml` | Cluster API's direct user-field mappings | Success |
+| `cluster-api-groups.yaml` | Same group used as supplementary and primary | Rejected as contradictory |
+| `cluster-api-deferred-fields.yaml` | Cluster API account-policy value shapes | Rejected because `inactive: true` cannot be represented |
