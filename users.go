@@ -81,10 +81,17 @@ func parseUsers(document map[string]any, file *ast.File) (usersConfig, Validatio
 
 func parseUser(fields map[string]any, path string, file *ast.File) (parsedUser, ValidationErrors) {
 	allowed := map[string]bool{
-		"name": true, "passwd": true, "gecos": true, "homedir": true,
-		"shell": true, "ssh_authorized_keys": true, "groups": true,
-		"primary_group": true, "inactive": true, "lock_passwd": true,
-		"sudo": true,
+		"name":                true,
+		"passwd":              true,
+		"gecos":               true,
+		"homedir":             true,
+		"shell":               true,
+		"ssh_authorized_keys": true,
+		"groups":              true,
+		"primary_group":       true,
+		"inactive":            true,
+		"lock_passwd":         true,
+		"sudo":                true,
 	}
 	var problems ValidationErrors
 	for _, key := range sortedKeys(fields) {
