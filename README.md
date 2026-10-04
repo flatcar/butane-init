@@ -75,7 +75,9 @@ The new fields accept only the shapes emitted by Cluster API: `groups` is a
 comma-separated string, `primary_group` and `sudo` are non-empty strings, and
 `inactive` and `lock_passwd` are booleans. Referenced groups are created before
 users. Empty or duplicate supplementary groups are rejected, and a primary
-group must not also be listed as a supplementary group.
+group must not also be listed as a supplementary group. If a referenced group
+has the same name as a configured user, that user must set `primary_group`
+explicitly to avoid colliding with Linux's implicit private-group creation.
 
 Password hashes are locked when `lock_passwd` is omitted or `true`. When it is
 `false`, the hash remains unlocked and `bt` enables SSH password authentication

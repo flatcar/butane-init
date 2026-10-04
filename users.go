@@ -23,6 +23,11 @@ type parsedUser struct {
 	User          base.PasswdUser
 }
 
+type userDeclaration struct {
+	HasPrimaryGroup bool
+	Path            string
+}
+
 func parseUsers(document map[string]any, file *ast.File) (usersConfig, ValidationErrors) {
 	var config usersConfig
 	var problems ValidationErrors
@@ -37,7 +42,7 @@ func parseUsers(document map[string]any, file *ast.File) (usersConfig, Validatio
 	}
 
 	seenGroups := map[string]struct{}{}
-	seenUsers := map[string]struct{}{}
+	declaredUsers := map[string]userDeclaration{}
 	var passwordLoginUsers []string
 	for i, item := range items {
 		path := fmt.Sprintf("users[%d]", i)
@@ -51,10 +56,13 @@ func parseUsers(document map[string]any, file *ast.File) (usersConfig, Validatio
 		problems = append(problems, userProblems...)
 		user := parsed.User
 		if user.Name != "" {
-			if _, duplicate := seenUsers[user.Name]; duplicate {
+			if _, duplicate := declaredUsers[user.Name]; duplicate {
 				problems = append(problems, problem(file, path+".name", fmt.Sprintf("duplicate user %q", user.Name)))
 			} else {
-				seenUsers[user.Name] = struct{}{}
+				declaredUsers[user.Name] = userDeclaration{
+					HasPrimaryGroup: user.PrimaryGroup != nil,
+					Path:            path,
+				}
 			}
 		}
 		for _, group := range user.Groups {
@@ -71,6 +79,13 @@ func parseUsers(document map[string]any, file *ast.File) (usersConfig, Validatio
 			config.Files = append(config.Files, generatedFile("/etc/sudoers.d/"+user.Name, contents))
 		}
 		config.Users = append(config.Users, user)
+	}
+	for _, group := range config.Groups {
+		user, matchesUser := declaredUsers[group.Name]
+		if matchesUser && !user.HasPrimaryGroup {
+			message := fmt.Sprintf("is required because group %q is explicitly referenced", group.Name)
+			problems = append(problems, problem(file, user.Path+".primary_group", message))
+		}
 	}
 	if len(passwordLoginUsers) > 0 {
 		contents := fmt.Sprintf("Match User %s\n    PasswordAuthentication yes\nMatch all\n", strings.Join(passwordLoginUsers, ","))

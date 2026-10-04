@@ -72,6 +72,56 @@ passwd:
 	}
 }
 
+func TestTranspileRejectsGroupCollidingWithImplicitUserGroup(t *testing.T) {
+	inputs := []string{
+		"#cloud-config\nusers:\n  - name: alice\n    groups: bob\n  - name: bob\n",
+		"#cloud-config\nusers:\n  - name: bob\n  - name: alice\n    groups: bob\n",
+	}
+
+	for _, input := range inputs {
+		got, err := transpile.Transpile([]byte(input))
+		if err == nil {
+			t.Fatal("Transpile() error = nil, want an implicit user-group collision error")
+		}
+		if got != nil {
+			t.Fatalf("Transpile() output = %q, want nil", got)
+		}
+		if !strings.Contains(err.Error(), "primary_group: is required because group \"bob\" is explicitly referenced") {
+			t.Fatalf("Transpile() error = %q, want implicit user-group collision error", err)
+		}
+	}
+}
+
+func TestTranspileAllowsExplicitSameNamePrimaryGroup(t *testing.T) {
+	input := `#cloud-config
+users:
+  - name: bob
+    primary_group: bob
+  - name: alice
+    groups: bob
+`
+	want := `version: 1.1.0
+variant: flatcar
+passwd:
+  groups:
+    - name: bob
+  users:
+    - name: bob
+      primary_group: bob
+    - groups:
+        - bob
+      name: alice
+`
+
+	got, err := transpile.Transpile([]byte(input))
+	if err != nil {
+		t.Fatalf("Transpile() error = %v", err)
+	}
+	if string(got) != want {
+		t.Fatalf("Transpile() output mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
 func TestTranspileHandlesInactive(t *testing.T) {
 	falseInput := "#cloud-config\nusers:\n  - name: alice\n    inactive: false\n"
 	want := "version: 1.1.0\nvariant: flatcar\npasswd:\n  users:\n    - name: alice\n"
@@ -218,6 +268,10 @@ func TestTranspileRejectsInvalidUsers(t *testing.T) {
 		"locked password with password login": {
 			input:   "#cloud-config\nusers:\n  - name: alice\n    passwd: \"!$6$HASH\"\n    lock_passwd: false\n",
 			wantErr: "must not be locked when lock_passwd is false",
+		},
+		"star-locked password with password login": {
+			input:   "#cloud-config\nusers:\n  - name: alice\n    passwd: \"*LK*\"\n    lock_passwd: false\n",
+			wantErr: "users[0].passwd: must not be locked when lock_passwd is false",
 		},
 		"unsafe sudoers username": {
 			input:   "#cloud-config\nusers:\n  - name: ALL\n    sudo: \"ALL=(ALL) NOPASSWD:ALL\"\n",
