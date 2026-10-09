@@ -46,20 +46,54 @@ bt cloud-config.yaml > butane.yaml
 is either converted completely or rejected; unsupported fields are never
 silently discarded.
 
-| cloud-config field      | Butane field          |
-| ----------------------- | --------------------- |
-| `name`                  | `name`                |
-| `passwd`                | `password_hash`       |
-| `gecos`                 | `gecos`               |
-| `homedir`               | `home_dir`            |
-| `shell`                 | `shell`               |
-| `ssh_authorized_keys`   | `ssh_authorized_keys` |
+| cloud-config stanza | Status | Butane output |
+| ------------------- | ------ | ------------- |
+| `users` | Supported Cluster API subset | `passwd`, plus generated `storage.files` |
+| `write_files` | Unsupported | Planned `storage.files` |
+| `runcmd` | Unsupported | Planned scripts and systemd units |
+| `bootcmd` | Unsupported | Planned scripts and systemd units |
+| `ntp` | Unsupported | Planned time-sync configuration |
+| `disk_setup` | Unsupported | Planned storage configuration |
+| `fs_setup` | Unsupported | Planned `storage.filesystems` |
+| `mounts` | Unsupported | Planned filesystems or systemd mount units |
 
-Password hashes remain locked, matching cloud-init's default
-`lock_passwd: true`. Supplementary and primary groups, sudo configuration,
-password unlocking, and every non-`users` stanza are not yet supported.
-Jinja templates are not evaluated and are rejected; render them before passing
-the resulting cloud-config to `bt`.
+| cloud-config field    | Butane output |
+| --------------------- | ------------- |
+| `name`                | `passwd.users[].name` |
+| `passwd`              | `passwd.users[].password_hash` |
+| `gecos`               | `passwd.users[].gecos` |
+| `homedir`             | `passwd.users[].home_dir` |
+| `shell`               | `passwd.users[].shell` |
+| `ssh_authorized_keys` | `passwd.users[].ssh_authorized_keys` |
+| `groups`              | `passwd.users[].groups` and synthesized `passwd.groups` |
+| `primary_group`       | `passwd.users[].primary_group` and synthesized `passwd.groups` |
+| `inactive`            | `false` is a no-op; `true` is rejected |
+| `lock_passwd`         | Password locking and a generated sshd drop-in when `false` |
+| `sudo`                | A generated `/etc/sudoers.d/<username>` file |
+
+The new fields accept only the shapes emitted by Cluster API: `groups` is a
+comma-separated string, `primary_group` and `sudo` are non-empty strings, and
+`inactive` and `lock_passwd` are booleans. Referenced groups are created before
+users. Empty or duplicate supplementary groups are rejected, and a primary
+group must not also be listed as a supplementary group. If a referenced group
+has the same name as a configured user, that user must set `primary_group`
+explicitly to avoid colliding with Linux's implicit private-group creation.
+
+Password hashes are locked when `lock_passwd` is omitted or `true`. When it is
+`false`, the hash remains unlocked and `bt` enables SSH password authentication
+for that user with a Flatcar sshd drop-in. An already-locked hash is rejected
+when `lock_passwd` is `false`. Users that request password login or sudo must
+have names matching `^[a-z_][a-z0-9_-]*$` so names cannot become SSH, sudoers,
+or path syntax.
+
+Generated sshd and sudoers files are root-owned, mode 0600, and replace any
+existing file at the generated path. Sudo rules are preserved verbatim and are
+not checked for valid sudoers syntax. No sshd restart is needed because
+Ignition writes the drop-in before sshd starts.
+
+Every non-`users` stanza remains unsupported. Jinja templates are not evaluated
+and are rejected; render them before passing the resulting cloud-config to
+`bt`.
 
 ### A Flatcar Container Linux project
 

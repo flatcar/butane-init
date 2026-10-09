@@ -82,9 +82,9 @@ func Transpile(input []byte) ([]byte, error) {
 	}
 
 	config := schema.Config{Variant: variant, Version: version}
-	if len(users) > 0 {
-		config.Passwd.Users = users
-	}
+	config.Passwd.Groups = users.Groups
+	config.Passwd.Users = users.Users
+	config.Storage.Files = users.Files
 	out, err := yaml.MarshalWithOptions(config, yaml.OmitZero(), yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
 		return nil, fmt.Errorf("encode Butane config: %w", err)
