@@ -70,13 +70,15 @@ func Transpile(input []byte) ([]byte, error) {
 
 	var problems ValidationErrors
 	for _, key := range sortedKeys(document) {
-		if key != "users" {
+		if key != "users" && key != "ntp" {
 			problems = append(problems, problem(file, key, "unsupported field"))
 		}
 	}
 
 	users, userProblems := parseUsers(document, file)
 	problems = append(problems, userProblems...)
+	ntpFiles, ntpProblems := parseNTP(document, file)
+	problems = append(problems, ntpProblems...)
 	if len(problems) > 0 {
 		return nil, problems
 	}
@@ -84,7 +86,7 @@ func Transpile(input []byte) ([]byte, error) {
 	config := schema.Config{Variant: variant, Version: version}
 	config.Passwd.Groups = users.Groups
 	config.Passwd.Users = users.Users
-	config.Storage.Files = users.Files
+	config.Storage.Files = append(users.Files, ntpFiles...)
 	out, err := yaml.MarshalWithOptions(config, yaml.OmitZero(), yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
 		return nil, fmt.Errorf("encode Butane config: %w", err)

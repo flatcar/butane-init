@@ -42,7 +42,7 @@ bt cloud-config.yaml > butane.yaml
 # or: cat cloud-config.yaml | bt -o butane.yaml
 ```
 
-`bt` currently converts only the Cluster API worker `users` subset. A config
+`bt` currently converts the Cluster API `users` and `ntp` subsets. A config
 is either converted completely or rejected; unsupported fields are never
 silently discarded.
 
@@ -52,7 +52,7 @@ silently discarded.
 | `write_files` | Unsupported | Planned `storage.files` |
 | `runcmd` | Unsupported | Planned scripts and systemd units |
 | `bootcmd` | Unsupported | Planned scripts and systemd units |
-| `ntp` | Unsupported | Planned time-sync configuration |
+| `ntp` | Supported Cluster API subset | A generated timesyncd configuration file |
 | `disk_setup` | Unsupported | Planned storage configuration |
 | `fs_setup` | Unsupported | Planned `storage.filesystems` |
 | `mounts` | Unsupported | Planned filesystems or systemd mount units |
@@ -91,9 +91,26 @@ existing file at the generated path. Sudo rules are preserved verbatim and are
 not checked for valid sudoers syntax. No sshd restart is needed because
 Ignition writes the drop-in before sshd starts.
 
-Every non-`users` stanza remains unsupported. Jinja templates are not evaluated
-and are rejected; render them before passing the resulting cloud-config to
-`bt`.
+### NTP
+
+`ntp` accepts only `enabled` (a boolean) and `servers` (a list of ASCII hostnames,
+IPv4 addresses, or bare IPv6 addresses without zone identifiers or ports).
+Server names are validated without DNS lookups; whitespace, URLs, and configuration
+syntax are rejected. Unsupported fields such as `pools`, `ntp_client`, and `config`
+are rejected even when `enabled: false`.
+
+With `enabled` omitted or `true`, non-empty servers produce a root-owned, mode 0644
+`/etc/systemd/timesyncd.conf.d/60-butane-init.conf` file, replacing any file at that
+path. It resets earlier global `NTP=` settings before assigning the supplied list;
+later drop-ins can still override it. DHCP-provided sources remain allowed.
+`enabled: false` skips NTP configuration after validation; it does not disable time
+synchronization. Omitted, null, or empty server lists, an absent `ntp` stanza, and
+`ntp: {}` retain Flatcar defaults without generating files or units.
+
+This relies on Flatcar's native timesyncd service, does not switch clients on images
+using another daemon, and does not make kubeadm wait for synchronization.
+All stanzas other than `users` and `ntp` remain unsupported. Jinja templates are
+not evaluated and are rejected; render them before passing cloud-config to `bt`.
 
 ### A Flatcar Container Linux project
 
