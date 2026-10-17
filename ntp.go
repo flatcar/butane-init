@@ -10,7 +10,11 @@ import (
 	"github.com/goccy/go-yaml/ast"
 )
 
-var ntpHostnameLabel = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)
+// A hostname label is 1–63 ASCII letters, digits, or hyphens.
+// The first and last characters must be letters or digits.
+var ntpHostnameLabel = regexp.MustCompile(
+	`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`,
+)
 
 func parseNTP(document map[string]any, file *ast.File) ([]base.File, ValidationErrors) {
 	raw, exists := document["ntp"]
@@ -55,7 +59,10 @@ func parseNTP(document map[string]any, file *ast.File) ([]base.File, ValidationE
 		return nil, problems
 	}
 	// Reset earlier global servers, leaving per-link/DHCP sources untouched.
-	contents := "[Time]\nNTP=\nNTP=" + strings.Join(servers, " ") + "\n"
+	contents := fmt.Sprintf(`[Time]
+NTP=
+NTP=%s
+`, strings.Join(servers, " "))
 	mode := 0o644
 	overwrite := true
 	return []base.File{{
