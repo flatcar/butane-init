@@ -1,0 +1,15 @@
+#cloud-config
+write_files:
+  - path: /run/kubeadm/kubeadm-join-config.yaml
+    owner: root:root
+    permissions: '0640'
+    content: |
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      nodeRegistration:
+        name: worker-01
+  - path: /run/cluster-api/placeholder
+    owner: root:root
+    permissions: '0640'
+    content: "This placeholder file is used to create the /run/cluster-api sub directory in a way that is compatible with both Linux and Windows (mkdir -p /run/cluster-api does not work with Windows)"
