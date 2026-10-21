@@ -25,6 +25,7 @@ ntp:
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Explicitly enabling NTP must produce the same output as omitting enabled.
 	explicit := strings.Replace(input, "ntp:\n", "ntp:\n  enabled: true\n", 1)
 	explicitOut, err := transpile.Transpile([]byte(explicit))
 	if err != nil || string(explicitOut) != string(out) {
@@ -54,14 +55,23 @@ ntp:
 }
 
 func TestTranspileNTPPreservesDefaults(t *testing.T) {
-	for _, stanza := range []string{
-		"", "ntp: {}", "ntp: {enabled: true}", "ntp: {enabled: false}",
-		"ntp: {servers:}", "ntp: {servers: null}", "ntp: {servers: []}",
-		"ntp: {enabled: true, servers:}", "ntp: {enabled: true, servers: []}",
-		"ntp: {enabled: false, servers: [time.example.net]}",
+	for _, tt := range []struct {
+		name   string
+		stanza string
+	}{
+		{"missing stanza", ""},
+		{"empty stanza", "ntp: {}"},
+		{"enabled without servers", "ntp: {enabled: true}"},
+		{"disabled without servers", "ntp: {enabled: false}"},
+		{"bare server list", "ntp: {servers:}"},
+		{"null server list", "ntp: {servers: null}"},
+		{"empty server list", "ntp: {servers: []}"},
+		{"enabled with bare server list", "ntp: {enabled: true, servers:}"},
+		{"enabled with empty server list", "ntp: {enabled: true, servers: []}"},
+		{"disabled with servers", "ntp: {enabled: false, servers: [time.example.net]}"},
 	} {
-		t.Run(stanza, func(t *testing.T) {
-			out, err := transpile.Transpile([]byte("#cloud-config\n" + stanza + "\n"))
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := transpile.Transpile([]byte("#cloud-config\n" + tt.stanza + "\n"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -74,33 +84,34 @@ func TestTranspileNTPPreservesDefaults(t *testing.T) {
 
 func TestTranspileRejectsInvalidNTP(t *testing.T) {
 	tests := []struct {
+		name   string
 		stanza string
 		path   string
 	}{
-		{"ntp: null", "ntp"},
-		{"ntp: []", "ntp"},
-		{"ntp: {enabled: 'false'}", "ntp.enabled"},
-		{"ntp: {enabled: null}", "ntp.enabled"},
-		{"ntp: {servers: time.example.net}", "ntp.servers"},
-		{"ntp: {servers: [123]}", "ntp.servers[0]"},
-		{"ntp: {servers: ['']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['time.example.net other.example.net']}", "ntp.servers[0]"},
-		{`ntp: {servers: ["time.example.net\nFallbackNTP=evil.example.net"]}`, "ntp.servers[0]"},
-		{"ntp: {servers: ['ntp://time.example.net']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['time.example.net:123']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['[2001:db8::123]']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['fe80::1%eth0']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['-time.example.net']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['time..example.net']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['" + strings.Repeat("a", 64) + ".net']}", "ntp.servers[0]"},
-		{"ntp: {servers: ['" + strings.Repeat("abc.", 63) + "ab']}", "ntp.servers[0]"},
-		{"ntp: {enabled: false, servers: ['bad server']}", "ntp.servers[0]"},
-		{"ntp: {enabled: false, pools: []}", "ntp.pools"},
-		{"ntp: {ntp_client: chrony}", "ntp.ntp_client"},
-		{"ntp: {config: {}}", "ntp.config"},
+		{"null stanza", "ntp: null", "ntp"},
+		{"stanza must be an object", "ntp: []", "ntp"},
+		{"enabled must be boolean", "ntp: {enabled: 'false'}", "ntp.enabled"},
+		{"enabled must not be null", "ntp: {enabled: null}", "ntp.enabled"},
+		{"servers must be a list", "ntp: {servers: time.example.net}", "ntp.servers"},
+		{"server must be a string", "ntp: {servers: [123]}", "ntp.servers[0]"},
+		{"empty server", "ntp: {servers: ['']}", "ntp.servers[0]"},
+		{"server contains whitespace", "ntp: {servers: ['time.example.net other.example.net']}", "ntp.servers[0]"},
+		{"server contains configuration injection", `ntp: {servers: ["time.example.net\nFallbackNTP=evil.example.net"]}`, "ntp.servers[0]"},
+		{"server is a URL", "ntp: {servers: ['ntp://time.example.net']}", "ntp.servers[0]"},
+		{"server contains a port", "ntp: {servers: ['time.example.net:123']}", "ntp.servers[0]"},
+		{"bracketed IPv6 address", "ntp: {servers: ['[2001:db8::123]']}", "ntp.servers[0]"},
+		{"scoped IPv6 address", "ntp: {servers: ['fe80::1%eth0']}", "ntp.servers[0]"},
+		{"label starts with hyphen", "ntp: {servers: ['-time.example.net']}", "ntp.servers[0]"},
+		{"empty hostname label", "ntp: {servers: ['time..example.net']}", "ntp.servers[0]"},
+		{"label exceeds maximum length", "ntp: {servers: ['" + strings.Repeat("a", 64) + ".net']}", "ntp.servers[0]"},
+		{"hostname exceeds maximum length", "ntp: {servers: ['" + strings.Repeat("abc.", 63) + "ab']}", "ntp.servers[0]"},
+		{"invalid server while disabled", "ntp: {enabled: false, servers: ['bad server']}", "ntp.servers[0]"},
+		{"unsupported pools while disabled", "ntp: {enabled: false, pools: []}", "ntp.pools"},
+		{"unsupported NTP client", "ntp: {ntp_client: chrony}", "ntp.ntp_client"},
+		{"unsupported custom configuration", "ntp: {config: {}}", "ntp.config"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.stanza, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			out, err := transpile.Transpile([]byte("#cloud-config\n" + tt.stanza + "\n"))
 			var problems transpile.ValidationErrors
 			if !errors.As(err, &problems) || len(problems) != 1 || out != nil {
@@ -114,12 +125,18 @@ func TestTranspileRejectsInvalidNTP(t *testing.T) {
 }
 
 func TestTranspileNTPHostnameForms(t *testing.T) {
-	for _, server := range []string{
-		"ntp", "Time-1.example.net.", "xn--bcher-kva.example",
-		strings.Repeat("a", 63) + ".net", strings.Repeat("abc.", 63) + "a.",
+	for _, tt := range []struct {
+		name   string
+		server string
+	}{
+		{"single-label hostname", "ntp"},
+		{"mixed case with trailing dot", "Time-1.example.net."},
+		{"punycode", "xn--bcher-kva.example"},
+		{"maximum label length", strings.Repeat("a", 63) + ".net"},
+		{"maximum hostname length", strings.Repeat("abc.", 63) + "a."},
 	} {
-		t.Run(server, func(t *testing.T) {
-			input := "#cloud-config\nntp:\n  servers: ['" + server + "']\n"
+		t.Run(tt.name, func(t *testing.T) {
+			input := "#cloud-config\nntp:\n  servers: ['" + tt.server + "']\n"
 			out, err := transpile.Transpile([]byte(input))
 			if err != nil {
 				t.Fatal(err)
@@ -129,7 +146,7 @@ func TestTranspileNTPHostnameForms(t *testing.T) {
 				t.Fatal(err)
 			}
 			if len(config.Storage.Files) != 1 || config.Storage.Files[0].Contents.Inline == nil ||
-				*config.Storage.Files[0].Contents.Inline != "[Time]\nNTP=\nNTP="+server+"\n" {
+				*config.Storage.Files[0].Contents.Inline != "[Time]\nNTP=\nNTP="+tt.server+"\n" {
 				t.Fatalf("server must be preserved verbatim: %s", out)
 			}
 		})

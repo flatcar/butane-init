@@ -22,7 +22,9 @@ Flatcar uses Butane and Ignition for provisioning. Much of the wider ecosystem s
 
 ### The Project
 
-A transpiler in Go that converts cloud-config YAML into Butane YAML.
+A transpiler in Go that converts cloud-config YAML into Butane YAML for Flatcar
+Container Linux. Generated configurations always use `variant: flatcar`; other
+distributions, including Fedora CoreOS, are not currently supported.
 The transpiler implements the minimum functionality needed to support ClusterAPI worker node provisioning, and to replace [coreos-cloudinit](https://github.com/flatcar/coreos-cloudinit)
 In practice that limits the transpiler to basic Butane features such as users, groups, certificates, files and systemd units.
 
@@ -159,6 +161,10 @@ synchronization. Omitted, null, or empty server lists, an absent `ntp` stanza, a
 
 This relies on Flatcar's native timesyncd service, does not switch clients on images
 using another daemon, and does not make kubeadm wait for synchronization.
+Fedora CoreOS [uses chrony](https://docs.fedoraproject.org/en-US/fedora-coreos/time-zone/#_time_synchronization),
+so this timesyncd drop-in would not configure its default NTP client. Supporting it
+would require both the appropriate Butane variant and chrony configuration, not
+just a change to the variant.
 All stanzas other than `users`, `ntp`, and `write_files` remain unsupported. Jinja templates are
 not evaluated and are rejected; render them before passing cloud-config to `bt`.
 
