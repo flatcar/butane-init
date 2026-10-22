@@ -12,6 +12,10 @@ import (
 
 // A hostname label is 1–63 ASCII letters, digits, or hyphens.
 // The first and last characters must be letters or digits.
+// RFC 1035 §2.3.1 defines the label syntax and length limit:
+// https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1
+// RFC 1123 §2.1 relaxes the first-character rule to also allow digits:
+// https://www.rfc-editor.org/rfc/rfc1123.html#section-2.1
 var ntpHostnameLabel = regexp.MustCompile(
 	`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`,
 )
