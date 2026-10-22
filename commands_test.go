@@ -2,7 +2,9 @@ package transpile_test
 
 import (
 	"errors"
+	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -134,5 +136,27 @@ write_files:
 	}
 	if !reflect.DeepEqual(paths, want) {
 		t.Errorf("problems = %q, want %q", paths, want)
+	}
+}
+
+// The embedded unit and script files hard-code their paths. Every Butane Init
+// path they use must stay reserved against write_files.
+func TestCommandFilesUseReservedPaths(t *testing.T) {
+	pathPattern := regexp.MustCompile(`/[^\s:"$]*butane-init[^\s:"$]*`)
+	for _, name := range []string{"butane-init-bootcmd.service", "butane-init-runcmd.service", "cloud-init-per"} {
+		contents, err := os.ReadFile("commands/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths := pathPattern.FindAllString(string(contents), -1)
+		if len(paths) == 0 {
+			t.Fatalf("%s: found no Butane Init paths", name)
+		}
+		for _, path := range paths {
+			input := "#cloud-config\nwrite_files:\n  - path: " + path + "\n"
+			if _, err := transpile.Transpile([]byte(input)); err == nil || !strings.Contains(err.Error(), "conflicts with file path") {
+				t.Errorf("%s uses %s, which write_files can target: %v", name, path, err)
+			}
+		}
 	}
 }
