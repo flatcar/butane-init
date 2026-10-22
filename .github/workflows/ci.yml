@@ -29,6 +29,9 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Check go fix
+        run: go fix -diff ./...
+
       - name: Vet
         run: go vet ./...
 
