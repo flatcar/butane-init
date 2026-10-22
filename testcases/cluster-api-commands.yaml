@@ -1,0 +1,8 @@
+#cloud-config
+bootcmd:
+  - "cloud-init-per once wipe-scratch echo \"first boot only\""
+runcmd:
+  - "echo \"pre-kubeadm\" > /run/pre-kubeadm.log"
+  - kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml  && echo success > /run/cluster-api/bootstrap-success.complete
+  - ""
+  - "echo post-kubeadm"

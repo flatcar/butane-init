@@ -30,7 +30,7 @@ func parseWriteFiles(document map[string]any, file *ast.File, generated []base.F
 	var files []base.File
 	var runtimeRules strings.Builder
 	var problems ValidationErrors
-	paths := []string{writeFilesTmpfilesPath}
+	paths := append([]string{writeFilesTmpfilesPath}, commandReservedPaths...)
 	for _, generatedFile := range generated {
 		paths = append(paths, generatedFile.Path)
 	}

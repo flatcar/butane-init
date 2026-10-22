@@ -44,7 +44,7 @@ bt cloud-config.yaml > butane.yaml
 # or: cat cloud-config.yaml | bt -o butane.yaml
 ```
 
-`bt` currently converts the Cluster API `users`, `ntp`, and plain `write_files` subsets. A config
+`bt` currently converts the Cluster API `users`, `ntp`, `bootcmd`, `runcmd`, and plain `write_files` subsets. A config
 is either converted completely or rejected; unsupported fields are never
 silently discarded.
 
@@ -52,8 +52,8 @@ silently discarded.
 | ------------------- | ------ | ------------- |
 | `users` | Supported Cluster API subset | `passwd`, plus generated `storage.files` |
 | `write_files` | Supported plain-file subset | `storage.files`, including tmpfiles rules for `/run` |
-| `runcmd` | Unsupported | Planned scripts and systemd units |
-| `bootcmd` | Unsupported | Planned scripts and systemd units |
+| `runcmd` | Supported Cluster API subset | A generated script and once-per-instance systemd unit |
+| `bootcmd` | Supported Cluster API subset | A generated script and every-boot systemd unit |
 | `ntp` | Supported Cluster API subset | A generated timesyncd configuration file |
 | `disk_setup` | Unsupported | Planned storage configuration |
 | `fs_setup` | Unsupported | Planned `storage.filesystems` |
@@ -140,8 +140,8 @@ recreated on every boot.** `!` restricts rules to tmpfiles invocations using
 `--boot`, not just the first boot. Such invocations also replace existing content.
 Consumers must run after `systemd-tmpfiles-setup.service`; conflicting tmpfiles
 rules installed outside this cloud-config remain the operator's responsibility.
-Creating a kubeadm configuration does not execute `kubeadm join`; `runcmd` is
-still unsupported. Boot and reboot behavior is verified on Flatcar 4757.2.1.
+Creating a kubeadm configuration does not execute `kubeadm join`; use `runcmd`
+for that. Boot and reboot behavior is verified on Flatcar 4757.2.1.
 
 ### NTP
 
@@ -165,7 +165,48 @@ Fedora CoreOS [uses chrony](https://docs.fedoraproject.org/en-US/fedora-coreos/t
 so this timesyncd drop-in would not configure its default NTP client. Supporting it
 would require both the appropriate Butane variant and chrony configuration, not
 just a change to the variant.
-All stanzas other than `users`, `ntp`, and `write_files` remain unsupported. Jinja templates are
+### Commands
+
+`bootcmd` and `runcmd` accept only the shape Cluster API emits: a list of strings.
+Argument-list items (`- [ls, -l]`), other non-string items, and a null stanza are
+rejected. An omitted stanza or empty list generates nothing.
+
+Each stanza becomes a root-owned, mode 0700 `/bin/sh` script at
+`/opt/butane-init/<stanza>.sh`, with one command per line, preserved verbatim, as
+cloud-init does. The scripts are not run with `set -e`: a failing command does not
+stop later ones, and the unit's result is the last command's exit status. Commands
+may contain bootstrap tokens, so the scripts are readable only by root. They live in
+`/opt` because Flatcar mounts `/etc` `noexec`.
+
+| | `bootcmd` | `runcmd` |
+| --- | --- | --- |
+| Unit | `butane-init-bootcmd.service` | `butane-init-runcmd.service` |
+| Frequency | Every boot | Once per instance, even if the commands fail |
+| Ordering | After `network.target`, before `network-online.target` and `runcmd` | After `network-online.target` and `bootcmd` |
+
+Both are oneshot units without a start timeout. A failing `bootcmd` is logged but
+does not prevent `runcmd`. An *instance* is identified by the Flatcar machine ID:
+`runcmd` writes `/var/lib/butane-init/sem/<machine-id>/runcmd` before running its
+commands, so it reruns only after the machine ID changes, for example after
+`flatcar-reset`. Output goes to the journal; `/var/log/cloud-init-output.log` is
+not emulated. Unlike cloud-init's first boot, `write_files` content already exists
+when `bootcmd` runs.
+
+The units, and only the units, run with `HOME=/root`, `INSTANCE_ID` set to the
+machine ID, and
+`PATH=/opt/butane-init/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`.
+Flatcar does not ship cloud-init, so `/opt/butane-init/bin/cloud-init-per`
+replaces its `cloud-init-per` tool:
+`cloud-init-per once|instance|always <name> <command> [args...]`, with markers
+under `/var/lib/butane-init/sem/` and `instance` markers stored per machine ID.
+Commands are never rewritten; other cloud-init tools are not provided.
+
+`/opt/butane-init`, `/var/lib/butane-init`, the two units and their drop-in
+directories and enablement symlinks, and `/etc/systemd/system-preset/20-ignition.preset`
+are reserved: `write_files` entries that target them are rejected.
+
+All stanzas other than `users`, `ntp`, `write_files`, `bootcmd`, and `runcmd`
+remain unsupported. Jinja templates are
 not evaluated and are rejected; render them before passing cloud-config to `bt`.
 
 ### A Flatcar Container Linux project

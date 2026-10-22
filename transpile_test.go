@@ -32,8 +32,8 @@ func TestTranspileRejectsInvalidDocument(t *testing.T) {
 			wantErr: "Jinja templates are unsupported",
 		},
 		"unsupported top-level field": {
-			input:   "#cloud-config\nruncmd: []\n",
-			wantErr: "runcmd",
+			input:   "#cloud-config\nmounts: []\n",
+			wantErr: "mounts",
 		},
 		"yaml alias": {
 			input:   "#cloud-config\nusers:\n  - &user\n    name: alice\n  - *user\n",
@@ -62,7 +62,7 @@ func TestTranspileRejectsInvalidDocument(t *testing.T) {
 }
 
 func TestTranspileReturnsStructuredValidationErrors(t *testing.T) {
-	input := "#cloud-config\nruncmd: []\nusers:\n  - shell: \"\"\n"
+	input := "#cloud-config\nmounts: []\nusers:\n  - shell: \"\"\n"
 
 	got, err := transpile.Transpile([]byte(input))
 	if err == nil {
@@ -77,7 +77,7 @@ func TestTranspileReturnsStructuredValidationErrors(t *testing.T) {
 		t.Fatalf("Transpile() error type = %T, want transpile.ValidationErrors", err)
 	}
 	want := transpile.ValidationErrors{
-		{Path: "runcmd", Message: "unsupported field", Line: 2, Column: 9},
+		{Path: "mounts", Message: "unsupported field", Line: 2, Column: 9},
 		{Path: "users[0].name", Message: "is required", Line: 4, Column: 10},
 		{Path: "users[0].shell", Message: "must not be empty", Line: 4, Column: 12},
 	}
@@ -85,7 +85,7 @@ func TestTranspileReturnsStructuredValidationErrors(t *testing.T) {
 		t.Fatalf("Transpile() validation errors = %#v, want %#v", problems, want)
 	}
 
-	wantMessage := "[2:9] runcmd: unsupported field\n" +
+	wantMessage := "[2:9] mounts: unsupported field\n" +
 		"[4:10] users[0].name: is required\n" +
 		"[4:12] users[0].shell: must not be empty"
 	if err.Error() != wantMessage {
