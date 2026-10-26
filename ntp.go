@@ -85,7 +85,7 @@ func validNTPServer(server string) bool {
 	if len(hostname) > 253 {
 		return false
 	}
-	for _, label := range strings.Split(hostname, ".") {
+	for label := range strings.SplitSeq(hostname, ".") {
 		if !ntpHostnameLabel.MatchString(label) {
 			return false
 		}
