@@ -171,7 +171,7 @@ func supplementaryGroups(fields map[string]any, path string, file *ast.File, pro
 
 	var groups []base.Group
 	seen := map[string]struct{}{}
-	for _, item := range strings.Split(*raw, ",") {
+	for item := range strings.SplitSeq(*raw, ",") {
 		name := strings.TrimSpace(item)
 		if name == "" {
 			*problems = append(*problems, problem(file, path+".groups", "must not contain an empty group name"))
