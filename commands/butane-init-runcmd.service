@@ -1,0 +1,18 @@
+[Unit]
+Description=Butane Init cloud-config runcmd
+Wants=network-online.target
+After=network-online.target butane-init-bootcmd.service
+ConditionPathExists=!/var/lib/butane-init/sem/%m/runcmd
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=/opt/butane-init/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=HOME=/root
+Environment=INSTANCE_ID=%m
+ExecStartPre=/usr/bin/mkdir -p /var/lib/butane-init/sem/%m
+ExecStartPre=/usr/bin/touch /var/lib/butane-init/sem/%m/runcmd
+ExecStart=/opt/butane-init/runcmd.sh
+
+[Install]
+WantedBy=multi-user.target

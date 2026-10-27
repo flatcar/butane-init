@@ -1,0 +1,15 @@
+[Unit]
+Description=Butane Init cloud-config bootcmd
+After=network.target
+Before=network-online.target butane-init-runcmd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=/opt/butane-init/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=HOME=/root
+Environment=INSTANCE_ID=%m
+ExecStart=/opt/butane-init/bootcmd.sh
+
+[Install]
+WantedBy=multi-user.target
