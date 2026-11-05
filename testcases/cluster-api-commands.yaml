@@ -4,7 +4,5 @@ bootcmd:
 runcmd:
   - "echo \"pre-kubeadm\" > /run/pre-kubeadm.log"
   - kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml  && echo success > /run/cluster-api/bootstrap-success.complete
-  # Intentional edge case: an empty user command, which Cluster API emits as "".
-  # It must be kept as a blank script line, not rejected or dropped.
-  - ""
+  - "" # intentional: an empty user command
   - "echo post-kubeadm"

@@ -31,18 +31,6 @@ var commandReservedPaths = []string{
 	"/etc/systemd/system/multi-user.target.wants/butane-init-runcmd.service",
 }
 
-// The embedded files are written exactly as they land on disk. Their paths
-// must stay within commandReservedPaths; TestCommandFilesUseReservedPaths
-// checks this.
-//
-// Both units add /opt/bin, where Flatcar installations commonly place
-// kubeadm, to PATH, with the cloud-init-per replacement first. bootcmd runs
-// on every boot, like cloud-init's init stage: after basic networking and
-// before network-online.target and runcmd. Its failure is logged without
-// blocking runcmd. runcmd runs once per instance (machine ID); like
-// cloud-init's semaphore, its marker is written before the commands run, so
-// failed or interrupted commands are not retried on reboot.
-
 //go:embed commands/butane-init-bootcmd.service
 var bootcmdUnit string
 
