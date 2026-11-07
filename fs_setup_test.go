@@ -58,6 +58,16 @@ storage:
 	}
 }
 
+func TestTranspileFSSetupEmpty(t *testing.T) {
+	// Cluster API emits a bare fs_setup: when disk_setup has only partitions.
+	for _, stanza := range []string{"fs_setup:", "fs_setup: []"} {
+		got, err := transpile.Transpile([]byte("#cloud-config\n" + stanza + "\n"))
+		if err != nil || string(got) != "version: 1.1.0\nvariant: flatcar\n" {
+			t.Fatalf("%s: expected empty config, got %v, %s", stanza, err, got)
+		}
+	}
+}
+
 func TestTranspileRejectsInvalidFSSetup(t *testing.T) {
 	tests := []struct {
 		name  string
