@@ -31,7 +31,7 @@ func TestTranspileCommands(t *testing.T) {
 	}
 	// Commands are preserved verbatim, one per line, without set -e.
 	wantScripts := map[string]string{
-		"/opt/butane-init/bootcmd.sh": "#!/bin/sh\ncloud-init-per once wipe-scratch echo \"first boot only\"\n",
+		"/opt/butane-init/bootcmd.sh": "#!/bin/sh\necho \"every boot\" >> /var/log/bootcmd.log\n",
 		"/opt/butane-init/runcmd.sh": "#!/bin/sh\n" +
 			"echo \"pre-kubeadm\" > /run/pre-kubeadm.log\n" +
 			"kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml  && echo success > /run/cluster-api/bootstrap-success.complete\n" +
@@ -43,8 +43,8 @@ func TestTranspileCommands(t *testing.T) {
 			t.Errorf("%s = %q (mode %o), want %q (mode 700)", path, files[path], modes[path], want)
 		}
 	}
-	if !strings.Contains(files["/opt/butane-init/bin/cloud-init-per"], `"$@"`) || modes["/opt/butane-init/bin/cloud-init-per"] != 0o755 {
-		t.Errorf("cloud-init-per replacement missing or not executable: %#v", config.Storage.Files)
+	if len(config.Storage.Files) != len(wantScripts) {
+		t.Errorf("files = %#v, want only the two scripts", config.Storage.Files)
 	}
 
 	units := map[string]string{}
@@ -58,7 +58,6 @@ func TestTranspileCommands(t *testing.T) {
 	for _, want := range []string{
 		"ConditionPathExists=!/var/lib/butane-init/sem/%m/runcmd",
 		"After=network-online.target butane-init-bootcmd.service",
-		"Environment=PATH=/opt/butane-init/bin:/opt/bin:",
 		"Environment=INSTANCE_ID=%m",
 		"ExecStart=/opt/butane-init/runcmd.sh",
 	} {
@@ -143,7 +142,7 @@ write_files:
 // path they use must stay reserved against write_files.
 func TestCommandFilesUseReservedPaths(t *testing.T) {
 	pathPattern := regexp.MustCompile(`/[^\s:"$]*butane-init[^\s:"$]*`)
-	for _, name := range []string{"butane-init-bootcmd.service", "butane-init-runcmd.service", "cloud-init-per"} {
+	for _, name := range []string{"butane-init-bootcmd.service", "butane-init-runcmd.service"} {
 		contents, err := os.ReadFile("commands/" + name)
 		if err != nil {
 			t.Fatal(err)

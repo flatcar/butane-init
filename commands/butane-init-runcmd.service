@@ -7,7 +7,6 @@ ConditionPathExists=!/var/lib/butane-init/sem/%m/runcmd
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-Environment=PATH=/opt/butane-init/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 Environment=HOME=/root
 Environment=INSTANCE_ID=%m
 ExecStartPre=/usr/bin/mkdir -p /var/lib/butane-init/sem/%m

@@ -37,12 +37,6 @@ var bootcmdUnit string
 //go:embed commands/butane-init-runcmd.service
 var runcmdUnit string
 
-// cloudInitPer replaces cloud-init's tools/cloud-init-per, which Flatcar does
-// not ship. "instance" markers are stored per machine ID.
-//
-//go:embed commands/cloud-init-per
-var cloudInitPer string
-
 // parseCommands converts bootcmd and runcmd into scripts and oneshot units.
 func parseCommands(document map[string]any, file *ast.File) ([]base.File, []base.Unit, ValidationErrors) {
 	var files []base.File
@@ -87,9 +81,6 @@ func parseCommands(document map[string]any, file *ast.File) ([]base.File, []base
 	}
 	if len(problems) > 0 {
 		return nil, nil, problems
-	}
-	if len(units) > 0 {
-		files = append(files, commandFile(commandsDir+"/bin/cloud-init-per", cloudInitPer, 0o755))
 	}
 	return files, units, nil
 }

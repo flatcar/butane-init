@@ -192,14 +192,12 @@ commands, so it reruns only after the machine ID changes, for example after
 not emulated. Unlike cloud-init's first boot, `write_files` content already exists
 when `bootcmd` runs.
 
-The units, and only the units, run with `HOME=/root`, `INSTANCE_ID` set to the
-machine ID, and
-`PATH=/opt/butane-init/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`.
-Flatcar does not ship cloud-init, so `/opt/butane-init/bin/cloud-init-per`
-replaces its `cloud-init-per` tool:
-`cloud-init-per once|instance|always <name> <command> [args...]`, with markers
-under `/var/lib/butane-init/sem/` and `instance` markers stored per machine ID.
-Commands are never rewritten; other cloud-init tools are not provided.
+The units, and only the units, run with `HOME=/root` and `INSTANCE_ID` set to the
+machine ID. `PATH` is systemd's default, so commands outside it, such as tools
+installed in `/opt/bin`, need a full path.
+Commands are never rewritten. Flatcar does not ship cloud-init, so cloud-init
+helper tools such as `cloud-init-per` are not available: commands that call them
+are accepted but fail at boot.
 
 `/opt/butane-init`, `/var/lib/butane-init`, the two units and their drop-in
 directories and enablement symlinks, and `/etc/systemd/system-preset/20-ignition.preset`

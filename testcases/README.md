@@ -33,4 +33,4 @@ boundary.
 | `cluster-api-groups.yaml` | Same group used as supplementary and primary | Rejected as contradictory |
 | `cluster-api-deferred-fields.yaml` | Cluster API account-policy value shapes | Rejected because `inactive: true` cannot be represented |
 | `cluster-api-write-files.yaml` | Worker bootstrap files under `/run` | Success via every-boot tmpfiles rules |
-| `cluster-api-commands.yaml` | `bootcmd`, `cloud-init-per`, and the kubeadm join `runcmd` | Success via scripts and oneshot units |
+| `cluster-api-commands.yaml` | `bootcmd` and the kubeadm join `runcmd` | Success via scripts and oneshot units |
