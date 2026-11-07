@@ -21,8 +21,9 @@ var maxLabelLength = map[string]int{"ext4": 16, "xfs": 12, "btrfs": 256, "vfat":
 
 // parseFSSetup converts the Cluster API fs_setup subset into Butane filesystems.
 func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, ValidationErrors) {
-	raw, exists := document["fs_setup"]
-	if !exists {
+	// Cluster API emits a bare fs_setup: when disk_setup has only partitions.
+	raw := document["fs_setup"]
+	if raw == nil {
 		return nil, nil
 	}
 	items, ok := raw.([]any)

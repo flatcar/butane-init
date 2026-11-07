@@ -190,8 +190,8 @@ name ends in a digit (`/dev/nvme1n1` and `1` become `/dev/nvme1n1p1`). cloud-ini
 resolves symlinks first, so a numbered partition requires a kernel device name
 such as `/dev/sdb`, not a `/dev/disk/...` path. Device aliases such as
 `ephemeral0`, `replace_fs`, `cmd`, and all other fields are rejected, as are two
-entries for the same device. An omitted stanza or empty list generates nothing;
-a null stanza is rejected.
+entries for the same device. An omitted, null, or empty stanza generates
+nothing; Cluster API emits a bare `fs_setup:` when `disk_setup` has only partitions.
 
 **Existing filesystems are never destroyed unless `overwrite: true`.** Without it,
 Ignition reuses a filesystem that already has the requested format and label,
