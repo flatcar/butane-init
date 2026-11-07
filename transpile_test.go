@@ -32,6 +32,7 @@ func TestTranspileRejectsInvalidDocument(t *testing.T) {
 			wantErr: "Jinja templates are unsupported",
 		},
 		"unsupported top-level field": {
+			// Using packages because Flatcar has no package manager, so it will never be supported.
 			input:   "#cloud-config\npackages: []\n",
 			wantErr: "packages",
 		},
@@ -62,6 +63,7 @@ func TestTranspileRejectsInvalidDocument(t *testing.T) {
 }
 
 func TestTranspileReturnsStructuredValidationErrors(t *testing.T) {
+	// Using packages because Flatcar has no package manager, so it will never be supported.
 	input := "#cloud-config\npackages: []\nusers:\n  - shell: \"\"\n"
 
 	got, err := transpile.Transpile([]byte(input))
