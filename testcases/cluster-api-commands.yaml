@@ -1,8 +1,8 @@
 #cloud-config
 bootcmd:
-  - "echo \"every boot\" >> /var/log/bootcmd.log"
+  - 'echo "every boot" >> /var/log/bootcmd.log'
 runcmd:
-  - "echo \"pre-kubeadm\" > /run/pre-kubeadm.log"
+  - 'echo "once per instance" > /run/runcmd.log'
   - kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml  && echo success > /run/cluster-api/bootstrap-success.complete
   - "" # intentional: an empty user command
-  - "echo post-kubeadm"
+  - "echo done"

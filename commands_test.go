@@ -33,10 +33,10 @@ func TestTranspileCommands(t *testing.T) {
 	wantScripts := map[string]string{
 		"/opt/butane-init/bootcmd.sh": "#!/bin/sh\necho \"every boot\" >> /var/log/bootcmd.log\n",
 		"/opt/butane-init/runcmd.sh": "#!/bin/sh\n" +
-			"echo \"pre-kubeadm\" > /run/pre-kubeadm.log\n" +
+			"echo \"once per instance\" > /run/runcmd.log\n" +
 			"kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml  && echo success > /run/cluster-api/bootstrap-success.complete\n" +
 			"\n" +
-			"echo post-kubeadm\n",
+			"echo done\n",
 	}
 	for path, want := range wantScripts {
 		if files[path] != want || modes[path] != 0o700 {
