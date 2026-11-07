@@ -44,7 +44,7 @@ bt cloud-config.yaml > butane.yaml
 # or: cat cloud-config.yaml | bt -o butane.yaml
 ```
 
-`bt` currently converts the Cluster API `users`, `ntp`, and plain `write_files` subsets. A config
+`bt` currently converts the Cluster API `users`, `ntp`, `mounts`, and plain `write_files` subsets. A config
 is either converted completely or rejected; unsupported fields are never
 silently discarded.
 
@@ -57,7 +57,7 @@ silently discarded.
 | `ntp` | Supported Cluster API subset | A generated timesyncd configuration file |
 | `disk_setup` | Unsupported | Planned storage configuration |
 | `fs_setup` | Unsupported | Planned `storage.filesystems` |
-| `mounts` | Unsupported | Planned filesystems or systemd mount units |
+| `mounts` | Supported Cluster API subset | Enabled systemd mount units in `systemd.units` |
 
 | cloud-config field    | Butane output |
 | --------------------- | ------------- |
@@ -165,7 +165,81 @@ Fedora CoreOS [uses chrony](https://docs.fedoraproject.org/en-US/fedora-coreos/t
 so this timesyncd drop-in would not configure its default NTP client. Supporting it
 would require both the appropriate Butane variant and chrony configuration, not
 just a change to the variant.
-All stanzas other than `users`, `ntp`, and `write_files` remain unsupported. Jinja templates are
+
+### Mounts
+
+`mounts` accepts the Cluster API v1.11.1 shape: a list of entries, each a list of
+two to six fstab fields, `[device, mount point, type, options, dump, pass]`. As in
+cloud-init 26.2, omitted fields default to `auto`,
+`defaults,nofail,x-systemd.after=cloud-init-network.service,_netdev`, `0`, and `2`.
+Each entry becomes an enabled systemd mount unit named after its mount point,
+matching the unit `systemd-fstab-generator` creates from the line cloud-init
+writes to `/etc/fstab`. Flatcar has no `/etc/fstab`.
+
+| Field | Supported values | Mount unit |
+| ----- | ---------------- | ---------- |
+| device | `LABEL=<label>`, `UUID=<uuid>`, or a partition such as `/dev/sdb1`, `/dev/xvdb1`, `/dev/nvme1n1p1`, or `/dev/mmcblk0p1` | `What=`; tags become `/dev/disk/by-label/` and `/dev/disk/by-uuid/` paths |
+| mount point | Clean absolute path of ASCII letters, digits, `.`, `_`, and `-` | `Where=` and the unit name |
+| type | `auto`, `ext4`, `xfs`, `btrfs`, or `vfat` | `Type=`, omitted for `auto` |
+| options | Comma-separated mount options | `Options=` (omitted for `defaults`), ordering, and `[Install]` |
+| dump | `0` | None; systemd ignores it and Flatcar has no `dump` |
+| pass | `0`, `1`, or `2` | A non-zero value adds a `systemd-fsck@` dependency |
+
+Labels and UUIDs may contain only ASCII letters, digits, `.`, `_`, and `-`.
+cloud-init passes these device names to fstab unchanged. Other names are rejected
+because cloud-init resolves them on the machine at boot: datasource aliases such as
+`ephemeral0`, `swap`, and `ebs0`; short names such as `sdc`; and whole disks, or
+symlinks such as `/dev/disk/by-id/...` that can point to one, which cloud-init
+replaces with the disk's first partition when one exists. Use the label that
+`fs_setup` assigns. Network filesystems and `swap` entries are also rejected.
+
+Options are copied to `Options=`, where systemd reads `nofail` and `_netdev`
+itself, and select the `[Install]` section as the generator does. With `_netdev`,
+the unit is installed into `remote-fs.target` and waits for
+`network-online.target`; otherwise it is installed into `local-fs.target`. With
+`nofail`, it uses `WantedBy=`, so a missing device does not fail the boot;
+otherwise it uses `RequiredBy=` and is ordered before the target. When both
+`nofail` and `fail` are given, the last one wins. `x-systemd.after=<unit>`
+becomes `After=<unit>`. The default
+`After=cloud-init-network.service` has no effect, because Flatcar has no such
+unit. `noauto` and all other `x-systemd.*` and `x-initrd.*` options are rejected.
+
+Mount points at or beneath `/bin`, `/boot`, `/dev`, `/etc`, `/lib`, `/lib64`,
+`/media`, `/oem`, `/proc`, `/run`, `/sbin`, `/sys`, `/tmp`, `/usr`, `/var/lock`,
+and `/var/run` are rejected, as are `/` and `/var`: on Flatcar they are symlinks,
+read-only, virtual, or mounted by Flatcar itself. Duplicate mount points are
+rejected. An omitted stanza or empty list generates nothing; a null stanza is
+rejected.
+
+The output is plain mount units, not `storage.filesystems` with
+`with_mount_unit`. A Butane filesystem tells Ignition to create the filesystem:
+Ignition would format a blank device, which `mounts` never does, and it needs a
+concrete format, not `auto`. Butane's generated unit also always uses
+`RequiredBy=` and always runs fsck, ignoring `nofail` and `pass`. Plain units
+keep the stanzas independent, as in cloud-init: `fs_setup` creates filesystems,
+and `mounts` refers to them by label, UUID, or partition.
+
+Differences from cloud-init:
+
+- cloud-init runs `mount -a` during its first boot, before `runcmd`; on later
+  boots systemd mounts the fstab entries. The units mount on every boot,
+  including the first. Each unit is ordered `Before=butane-init-runcmd.service`,
+  the unit planned for `runcmd`, so commands start after the mounts have finished
+  or failed. A missing `nofail` device therefore delays commands by systemd's
+  device timeout, 90 seconds by default, where cloud-init's `mount -a` fails at
+  once. As with cloud-init, nothing else, such as kubelet, waits for `nofail`
+  mounts.
+- cloud-init applies `users` and `ntp` after mounting, but Ignition writes their
+  output before. A mount point that would hide a configured user's home directory
+  or a file generated for `users` or `ntp` is rejected. `write_files` runs before
+  mounting in both, so a mount may hide written files, as in cloud-init.
+- cloud-init also mounts datasource defaults, such as an ephemeral disk on `/mnt`
+  and swap, even without `mounts`; `bt` does not. `mount_default_fields`,
+  `device_aliases`, and `swap` remain unsupported top-level keys.
+
+Boot and reboot behavior is verified on Flatcar 4757.2.1 (systemd 260).
+
+All stanzas other than `users`, `ntp`, `write_files`, and `mounts` remain unsupported. Jinja templates are
 not evaluated and are rejected; render them before passing cloud-config to `bt`.
 
 ### A Flatcar Container Linux project
