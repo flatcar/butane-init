@@ -44,7 +44,7 @@ bt cloud-config.yaml > butane.yaml
 # or: cat cloud-config.yaml | bt -o butane.yaml
 ```
 
-`bt` currently converts the Cluster API `users`, `ntp`, and plain `write_files` subsets. A config
+`bt` currently converts the Cluster API `users`, `ntp`, `disk_setup`, and plain `write_files` subsets. A config
 is either converted completely or rejected; unsupported fields are never
 silently discarded.
 
@@ -55,7 +55,7 @@ silently discarded.
 | `runcmd` | Unsupported | Planned scripts and systemd units |
 | `bootcmd` | Unsupported | Planned scripts and systemd units |
 | `ntp` | Supported Cluster API subset | A generated timesyncd configuration file |
-| `disk_setup` | Unsupported | Planned storage configuration |
+| `disk_setup` | Supported Cluster API GPT subset | `storage.disks` |
 | `fs_setup` | Unsupported | Planned `storage.filesystems` |
 | `mounts` | Unsupported | Planned filesystems or systemd mount units |
 
@@ -165,7 +165,68 @@ Fedora CoreOS [uses chrony](https://docs.fedoraproject.org/en-US/fedora-coreos/t
 so this timesyncd drop-in would not configure its default NTP client. Supporting it
 would require both the appropriate Butane variant and chrony configuration, not
 just a change to the variant.
-All stanzas other than `users`, `ntp`, and `write_files` remain unsupported. Jinja templates are
+
+### Disk setup
+
+`disk_setup` accepts the shape Cluster API v1.11.1 emits: an object mapping each
+device to a definition with these fields.
+
+| Field | Supported values |
+| ----- | ---------------- |
+| `layout` | Required boolean: `true` creates one partition spanning the device; `false` leaves the device alone |
+| `table_type` | `gpt` when `layout` is `true`; `mbr` (cloud-init's default) is rejected |
+| `overwrite` | Boolean, default `false`; accepted but does not change the output (see below) |
+
+Devices must be clean absolute paths beneath `/dev`, such as `/dev/sdb` or
+`/dev/disk/azure/scsi1/lun0`. Device aliases such as `ephemeral0`, partition-list
+layouts, `layout: remove`, and all other fields are rejected. An omitted stanza,
+a bare `disk_setup:` (which Cluster API emits when only `fs_setup` is
+configured), an empty object, and devices with `layout: false` generate nothing.
+`layout: false` turns off all other checks in cloud-init, so its `table_type`
+may be `mbr`.
+
+Each device with `layout: true` becomes a Butane `storage.disks` entry with
+`wipe_table: false` and a single partition number 1. It has no start, size, type,
+or label, so Ignition keeps an existing partition 1 whatever its size, and
+otherwise creates a Linux filesystem partition that fills the largest free area,
+which is the whole device on a blank disk, as cloud-init does. The kernel adds a
+`p` separator before the partition number when the device name ends in a digit:
+`/dev/sdb` gets `/dev/sdb1` and `/dev/nvme1n1` gets `/dev/nvme1n1p1`. That is
+the partition cloud-init's `fs_setup` names with `device: /dev/sdb` and
+`partition: 1`.
+
+**Only GPT is supported because Ignition only creates GPT partition tables.**
+Instead of silently changing the table type, `bt` rejects `layout: true` unless
+`table_type: gpt` is set explicitly.
+
+The table is never wiped, even with `overwrite: true`: cloud-init leaves a disk
+with at least one partition untouched whatever `overwrite` says, so
+`wipe_table: true` would destroy data that cloud-init keeps. Both handle a blank
+disk, an empty GPT, and a GPT disk that already has partition 1 the same way.
+These cases differ:
+
+- **An unpartitioned disk with a whole-disk filesystem is overwritten.** With
+  `overwrite: false`, cloud-init skips such a disk. Ignition does not check for
+  filesystems before it writes the GPT, so the filesystem is destroyed. With
+  `overwrite: true` both create the partition.
+- A disk with an MBR partition table, even an empty one, makes Ignition fail
+  provisioning without changing it. cloud-init leaves an MBR disk with
+  partitions alone and replaces an empty MBR table with a GPT.
+- A GPT disk with partitions but no partition 1 gets a new partition 1 in its
+  largest free area, or provisioning fails if there is no room; cloud-init leaves
+  it alone.
+- A whole disk that is itself mounted or held by device mapper makes Ignition
+  fail provisioning. cloud-init skips it unless `overwrite` is `true`.
+- cloud-init refuses a device that is not a whole disk, such as `/dev/sdb1`.
+  `bt` cannot check this, and Ignition partitions such a device anyway.
+- cloud-init logs a partitioning failure and continues booting; Ignition fails
+  the boot.
+
+Partitioning runs once per Ignition run, which matches cloud-init's
+once-per-instance frequency: `flatcar-reset` runs it again and keeps the
+existing partition 1.
+
+All stanzas other than `users`, `ntp`, `write_files`, and `disk_setup` remain unsupported. Jinja templates are
 not evaluated and are rejected; render them before passing cloud-config to `bt`.
 
 ### A Flatcar Container Linux project
