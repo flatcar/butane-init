@@ -44,7 +44,7 @@ bt cloud-config.yaml > butane.yaml
 # or: cat cloud-config.yaml | bt -o butane.yaml
 ```
 
-`bt` currently converts the Cluster API `users`, `ntp`, and plain `write_files` subsets. A config
+`bt` currently converts the Cluster API `users`, `ntp`, `fs_setup`, and plain `write_files` subsets. A config
 is either converted completely or rejected; unsupported fields are never
 silently discarded.
 
@@ -56,7 +56,7 @@ silently discarded.
 | `bootcmd` | Unsupported | Planned scripts and systemd units |
 | `ntp` | Supported Cluster API subset | A generated timesyncd configuration file |
 | `disk_setup` | Unsupported | Planned storage configuration |
-| `fs_setup` | Unsupported | Planned `storage.filesystems` |
+| `fs_setup` | Supported Cluster API subset | `storage.filesystems` |
 | `mounts` | Unsupported | Planned filesystems or systemd mount units |
 
 | cloud-config field    | Butane output |
@@ -165,7 +165,52 @@ Fedora CoreOS [uses chrony](https://docs.fedoraproject.org/en-US/fedora-coreos/t
 so this timesyncd drop-in would not configure its default NTP client. Supporting it
 would require both the appropriate Butane variant and chrony configuration, not
 just a change to the variant.
-All stanzas other than `users`, `ntp`, and `write_files` remain unsupported. Jinja templates are
+
+### Filesystem setup
+
+`fs_setup` accepts a list of objects using the Cluster API v1.11.1 field names.
+Each entry becomes one Butane `storage.filesystems` entry, which Ignition creates
+on first boot. Filesystems are not mounted; that is the job of `mounts`, which is
+still unsupported.
+
+| Field | Supported values | Butane output |
+| ----- | ---------------- | ------------- |
+| `device` | Required clean absolute path beneath `/dev` | `device` |
+| `filesystem` | Required: `ext4`, `xfs`, `btrfs`, `vfat`, or `swap` | `format` |
+| `label` | String within Ignition's per-format length limit; null or omitted means no label | `label` |
+| `partition` | Required: `none` (any case) or a positive partition number | Appended to `device` |
+| `overwrite` | Boolean, default `false` | `wipe_filesystem` |
+| `extra_opts` | List of strings, passed to `mkfs` as is | `options` |
+
+`partition` is required because cloud-init's default, `any`, and its `auto`
+mode choose a device at boot time by inspecting existing partitions. That
+choice cannot be made ahead of time, so both are rejected. Like cloud-init, a
+partition number is appended to the device name, with a `p` separator when the
+name ends in a digit (`/dev/nvme1n1` and `1` become `/dev/nvme1n1p1`). cloud-init
+resolves symlinks first, so a numbered partition requires a kernel device name
+such as `/dev/sdb`, not a `/dev/disk/...` path. Device aliases such as
+`ephemeral0`, `replace_fs`, `cmd`, and all other fields are rejected, as are two
+entries for the same device. An omitted stanza or empty list generates nothing;
+a null stanza is rejected.
+
+**Existing filesystems are never destroyed unless `overwrite: true`.** Without it,
+Ignition reuses a filesystem that already has the requested format and label,
+creates one on a device with no filesystem, and fails provisioning if the device
+holds any other filesystem. cloud-init differs in three ways:
+
+- With `partition: none`, cloud-init formats the device without checking what is
+  already there. With a partition number, a mismatched filesystem makes cloud-init
+  try a non-forced `mkfs`.
+- With no label, cloud-init reuses only an unlabeled filesystem; Ignition reuses a
+  filesystem of the right format whatever its label.
+- cloud-init logs a failed `mkfs` and continues booting; Ignition fails the boot.
+
+A device that has a partition table but no filesystem counts as blank: Ignition
+wipes it and formats the whole device, as cloud-init does with `partition: none`.
+Formatting runs once per Ignition run, which matches cloud-init's
+once-per-instance frequency: `flatcar-reset` runs it again.
+
+All stanzas other than `users`, `ntp`, `write_files`, and `fs_setup` remain unsupported. Jinja templates are
 not evaluated and are rejected; render them before passing cloud-config to `bt`.
 
 ### A Flatcar Container Linux project
