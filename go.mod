@@ -3,7 +3,7 @@ module github.com/flatcar/butane-init
 go 1.27.0
 
 require (
-	github.com/coreos/ignition/v2 v2.27.0
+	github.com/coreos/ignition/v2 v2.28.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/spf13/cobra v1.10.2
 )
