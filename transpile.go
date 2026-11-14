@@ -70,7 +70,7 @@ func Transpile(input []byte) ([]byte, error) {
 
 	var problems ValidationErrors
 	for _, key := range sortedKeys(document) {
-		if key != "users" && key != "ntp" && key != "write_files" {
+		if key != "users" && key != "ntp" && key != "write_files" && key != "fs_setup" {
 			problems = append(problems, problem(file, key, "unsupported field"))
 		}
 	}
@@ -82,6 +82,8 @@ func Transpile(input []byte) ([]byte, error) {
 	generatedFiles := append(users.Files, ntpFiles...)
 	writtenFiles, fileProblems := parseWriteFiles(document, file, generatedFiles)
 	problems = append(problems, fileProblems...)
+	filesystems, fsProblems := parseFSSetup(document, file)
+	problems = append(problems, fsProblems...)
 	if len(problems) > 0 {
 		return nil, problems
 	}
@@ -90,6 +92,7 @@ func Transpile(input []byte) ([]byte, error) {
 	config.Passwd.Groups = users.Groups
 	config.Passwd.Users = users.Users
 	config.Storage.Files = append(generatedFiles, writtenFiles...)
+	config.Storage.Filesystems = filesystems
 	out, err := yaml.MarshalWithOptions(config, yaml.OmitZero(), yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
 		return nil, fmt.Errorf("encode Butane config: %w", err)
