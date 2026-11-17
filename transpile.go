@@ -70,7 +70,7 @@ func Transpile(input []byte) ([]byte, error) {
 
 	var problems ValidationErrors
 	for _, key := range sortedKeys(document) {
-		if key != "users" && key != "ntp" && key != "write_files" {
+		if key != "users" && key != "ntp" && key != "write_files" && key != "mounts" {
 			problems = append(problems, problem(file, key, "unsupported field"))
 		}
 	}
@@ -82,6 +82,21 @@ func Transpile(input []byte) ([]byte, error) {
 	generatedFiles := append(users.Files, ntpFiles...)
 	writtenFiles, fileProblems := parseWriteFiles(document, file, generatedFiles)
 	problems = append(problems, fileProblems...)
+	// cloud-init applies users and ntp after mounting, so a mount must not
+	// hide what they create. write_files runs before mounts in both.
+	var provisioned []string
+	for _, user := range users.Users {
+		home := "/home/" + user.Name
+		if user.HomeDir != nil {
+			home = *user.HomeDir
+		}
+		provisioned = append(provisioned, home)
+	}
+	for _, generated := range generatedFiles {
+		provisioned = append(provisioned, generated.Path)
+	}
+	units, mountProblems := parseMounts(document, file, provisioned)
+	problems = append(problems, mountProblems...)
 	if len(problems) > 0 {
 		return nil, problems
 	}
@@ -90,6 +105,7 @@ func Transpile(input []byte) ([]byte, error) {
 	config.Passwd.Groups = users.Groups
 	config.Passwd.Users = users.Users
 	config.Storage.Files = append(generatedFiles, writtenFiles...)
+	config.Systemd.Units = units
 	out, err := yaml.MarshalWithOptions(config, yaml.OmitZero(), yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
 		return nil, fmt.Errorf("encode Butane config: %w", err)
