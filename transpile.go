@@ -70,7 +70,9 @@ func Transpile(input []byte) ([]byte, error) {
 
 	var problems ValidationErrors
 	for _, key := range sortedKeys(document) {
-		if key != "users" && key != "ntp" && key != "write_files" {
+		switch key {
+		case "users", "ntp", "write_files", "bootcmd", "runcmd":
+		default:
 			problems = append(problems, problem(file, key, "unsupported field"))
 		}
 	}
@@ -79,7 +81,9 @@ func Transpile(input []byte) ([]byte, error) {
 	problems = append(problems, userProblems...)
 	ntpFiles, ntpProblems := parseNTP(document, file)
 	problems = append(problems, ntpProblems...)
-	generatedFiles := append(users.Files, ntpFiles...)
+	commandFiles, commandUnits, commandProblems := parseCommands(document, file)
+	problems = append(problems, commandProblems...)
+	generatedFiles := append(append(users.Files, ntpFiles...), commandFiles...)
 	writtenFiles, fileProblems := parseWriteFiles(document, file, generatedFiles)
 	problems = append(problems, fileProblems...)
 	if len(problems) > 0 {
@@ -90,6 +94,7 @@ func Transpile(input []byte) ([]byte, error) {
 	config.Passwd.Groups = users.Groups
 	config.Passwd.Users = users.Users
 	config.Storage.Files = append(generatedFiles, writtenFiles...)
+	config.Systemd.Units = commandUnits
 	out, err := yaml.MarshalWithOptions(config, yaml.OmitZero(), yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
 		return nil, fmt.Errorf("encode Butane config: %w", err)
