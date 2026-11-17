@@ -70,7 +70,7 @@ func Transpile(input []byte) ([]byte, error) {
 
 	var problems ValidationErrors
 	for _, key := range sortedKeys(document) {
-		if key != "users" && key != "ntp" && key != "write_files" {
+		if key != "users" && key != "ntp" && key != "write_files" && key != "disk_setup" {
 			problems = append(problems, problem(file, key, "unsupported field"))
 		}
 	}
@@ -82,6 +82,8 @@ func Transpile(input []byte) ([]byte, error) {
 	generatedFiles := append(users.Files, ntpFiles...)
 	writtenFiles, fileProblems := parseWriteFiles(document, file, generatedFiles)
 	problems = append(problems, fileProblems...)
+	disks, diskProblems := parseDiskSetup(document, file)
+	problems = append(problems, diskProblems...)
 	if len(problems) > 0 {
 		return nil, problems
 	}
@@ -89,6 +91,7 @@ func Transpile(input []byte) ([]byte, error) {
 	config := schema.Config{Variant: variant, Version: version}
 	config.Passwd.Groups = users.Groups
 	config.Passwd.Users = users.Users
+	config.Storage.Disks = disks
 	config.Storage.Files = append(generatedFiles, writtenFiles...)
 	out, err := yaml.MarshalWithOptions(config, yaml.OmitZero(), yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
