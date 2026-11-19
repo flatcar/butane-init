@@ -26,16 +26,16 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 	if raw == nil {
 		return nil, nil
 	}
-	items, ok := raw.([]any)
+	fsEntries, ok := raw.([]any)
 	if !ok {
 		return nil, ValidationErrors{problem(file, "fs_setup", "must be a list")}
 	}
 	var filesystems []base.Filesystem
 	var problems ValidationErrors
 	devices := map[string]bool{}
-	for i, item := range items {
+	for i, fsEntry := range fsEntries {
 		fieldPath := fmt.Sprintf("fs_setup[%d]", i)
-		fields, ok := item.(map[string]any)
+		fields, ok := fsEntry.(map[string]any)
 		if !ok {
 			problems = append(problems, problem(file, fieldPath, "must be an object"))
 			continue
@@ -117,7 +117,7 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 	return filesystems, problems
 }
 
-// parsePartitionNumber accepts the YAML integer or digit string Cluster API emits.
+// accept only string or int
 func parsePartitionNumber(raw any) (int, bool) {
 	var text string
 	switch value := raw.(type) {
