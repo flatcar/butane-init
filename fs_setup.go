@@ -72,7 +72,7 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 		}
 		if raw, exists := fields["partition"]; !exists {
 			problems = append(problems, problem(file, fieldPath+".partition", "is required: cloud-init's default \"any\" selects a device at boot time; use \"none\" or a partition number"))
-		} else if number, ok := partitionNumber(raw); ok {
+		} else if number, ok := parsePartitionNumber(raw); ok {
 			if !kernelDevice.MatchString(device) {
 				problems = append(problems, problem(file, fieldPath+".device", "must be a kernel device name such as /dev/sdb when partition is a number"))
 			} else {
@@ -117,8 +117,8 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 	return filesystems, problems
 }
 
-// partitionNumber accepts the YAML integer or digit string Cluster API emits.
-func partitionNumber(raw any) (int, bool) {
+// parsePartitionNumber accepts the YAML integer or digit string Cluster API emits.
+func parsePartitionNumber(raw any) (int, bool) {
 	var text string
 	switch value := raw.(type) {
 	case uint64:
