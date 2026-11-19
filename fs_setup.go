@@ -35,46 +35,54 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 	devices := map[string]bool{}
 	for i, fsEntry := range fsEntries {
 		fieldPath := fmt.Sprintf("fs_setup[%d]", i)
+
+		addProblem := func(field, message string) {
+			problems = append(problems, problem(file, fieldPath+field, message))
+		}
+
 		fields, ok := fsEntry.(map[string]any)
 		if !ok {
-			problems = append(problems, problem(file, fieldPath, "must be an object"))
+			addProblem("", "must be an object")
 			continue
 		}
 		for _, key := range sortedKeys(fields) {
 			switch key {
 			case "device", "filesystem", "label", "partition", "overwrite", "extra_opts":
 			default:
-				problems = append(problems, problem(file, fieldPath+"."+key, "unsupported field"))
+				addProblem("."+key, "unsupported field")
 			}
 		}
 		device := requiredString(fields, "device", fieldPath, file, &problems)
-		if device != "" && (!strings.HasPrefix(device, "/dev/") || path.Clean(device) != device || strings.ContainsFunc(device, unicode.IsControl)) {
-			problems = append(problems, problem(file, fieldPath+".device", "must be a clean absolute path beneath /dev; device aliases are unsupported"))
+		validDevice := strings.HasPrefix(device, "/dev/") &&
+			path.Clean(device) == device &&
+			!strings.ContainsFunc(device, unicode.IsControl)
+		if device != "" && !validDevice {
+			addProblem(".device", "must be a clean absolute path beneath /dev; device aliases are unsupported")
 		}
 		format := requiredString(fields, "filesystem", fieldPath, file, &problems)
 		switch format {
 		case "", "ext4", "xfs", "btrfs", "vfat", "swap":
 		default:
-			problems = append(problems, problem(file, fieldPath+".filesystem", "must be one of ext4, xfs, btrfs, vfat, or swap"))
+			addProblem(".filesystem", "must be one of ext4, xfs, btrfs, vfat, or swap")
 		}
 		// Cluster API emits a bare label: key when no label is configured.
 		var label *string
 		if raw := fields["label"]; raw != nil {
 			value, ok := raw.(string)
 			if !ok || value == "" {
-				problems = append(problems, problem(file, fieldPath+".label", "must be a non-empty string or null"))
+				addProblem(".label", "must be a non-empty string or null")
 			} else {
 				label = &value
 				if limit := maxLabelLength[format]; limit > 0 && len(value) > limit {
-					problems = append(problems, problem(file, fieldPath+".label", fmt.Sprintf("must be at most %d bytes for %s", limit, format)))
+					addProblem(".label", fmt.Sprintf("must be at most %d bytes for %s", limit, format))
 				}
 			}
 		}
 		if raw, exists := fields["partition"]; !exists {
-			problems = append(problems, problem(file, fieldPath+".partition", "is required: cloud-init's default \"any\" selects a device at boot time; use \"none\" or a partition number"))
+			addProblem(".partition", "is required: cloud-init's default \"any\" selects a device at boot time; use \"none\" or a partition number")
 		} else if number, ok := parsePartitionNumber(raw); ok {
 			if !kernelDevice.MatchString(device) {
-				problems = append(problems, problem(file, fieldPath+".device", "must be a kernel device name such as /dev/sdb when partition is a number"))
+				addProblem(".device", "must be a kernel device name such as /dev/sdb when partition is a number")
 			} else {
 				// Like cloud-init, use the "p" separator after a trailing digit (nvme0n1p1).
 				if unicode.IsDigit(rune(device[len(device)-1])) {
@@ -83,11 +91,11 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 				device += strconv.Itoa(number)
 			}
 		} else if value, ok := raw.(string); !ok || !strings.EqualFold(value, "none") {
-			problems = append(problems, problem(file, fieldPath+".partition", "must be \"none\" or a positive partition number; \"auto\" and \"any\" are unsupported"))
+			addProblem(".partition", "must be \"none\" or a positive partition number; \"auto\" and \"any\" are unsupported")
 		}
 		if device != "" {
 			if devices[device] {
-				problems = append(problems, problem(file, fieldPath+".device", fmt.Sprintf("duplicates filesystem device %q", device)))
+				addProblem(".device", fmt.Sprintf("duplicates filesystem device %q", device))
 			}
 			devices[device] = true
 		}
@@ -96,12 +104,12 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 		if raw, exists := fields["extra_opts"]; exists {
 			opts, ok := raw.([]any)
 			if !ok {
-				problems = append(problems, problem(file, fieldPath+".extra_opts", "must be a list"))
+				addProblem(".extra_opts", "must be a list")
 			}
 			for j, opt := range opts {
 				value, ok := opt.(string)
 				if !ok || value == "" {
-					problems = append(problems, problem(file, fmt.Sprintf("%s.extra_opts[%d]", fieldPath, j), "must be a non-empty string"))
+					addProblem(fmt.Sprintf(".extra_opts[%d]", j), "must be a non-empty string")
 					continue
 				}
 				options = append(options, value)
