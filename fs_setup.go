@@ -12,14 +12,12 @@ import (
 	"github.com/goccy/go-yaml/ast"
 )
 
-// cloud-init appends a partition number to the resolved device node. Only a
-// top-level kernel name lets us derive that path without resolving symlinks.
+// allow only /dev/xyz devices not symlink paths like /dev/disk, etc.
 var kernelDevice = regexp.MustCompile(`^/dev/[a-z][a-z0-9]*$`)
 
-// maxLabelLength mirrors Ignition's per-format label limits, in bytes.
+// mirrors Ignition's per-format label limits, in bytes.
 var maxLabelLength = map[string]int{"ext4": 16, "xfs": 12, "btrfs": 256, "vfat": 11, "swap": 15}
 
-// parseFSSetup converts the Cluster API fs_setup subset into Butane filesystems.
 func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, ValidationErrors) {
 	// Cluster API emits a bare fs_setup: when disk_setup has only partitions.
 	raw := document["fs_setup"]
