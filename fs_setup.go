@@ -53,8 +53,7 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 			}
 		}
 		device := requiredString(fields, "device", fieldPath, file, &problems)
-		validDevice := strings.HasPrefix(device, "/dev/") &&
-			path.Clean(device) == device &&
+		validDevice := strings.HasPrefix(device, "/dev/") && path.Clean(device) == device &&
 			!strings.ContainsFunc(device, unicode.IsControl)
 		if device != "" && !validDevice {
 			addProblem(".device", "must be a clean absolute path beneath /dev; device aliases are unsupported")
