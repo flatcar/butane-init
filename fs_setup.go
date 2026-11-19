@@ -114,10 +114,7 @@ func parseFSSetup(document map[string]any, file *ast.File) ([]base.Filesystem, V
 			Device: device, Format: &format, Label: label, Options: options, WipeFilesystem: &wipe,
 		})
 	}
-	if len(problems) > 0 {
-		return nil, problems
-	}
-	return filesystems, nil
+	return filesystems, problems
 }
 
 // partitionNumber accepts the YAML integer or digit string Cluster API emits.
