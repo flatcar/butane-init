@@ -20,10 +20,12 @@ const (
 var commandReservedPaths = []string{
 	commandsDir,
 	commandsState,
+
 	"/etc/systemd/system/butane-init-bootcmd.service",
 	"/etc/systemd/system/butane-init-bootcmd.service.d",
 	"/etc/systemd/system/butane-init-runcmd.service",
 	"/etc/systemd/system/butane-init-runcmd.service.d",
+
 	// Ignition appends enablement presets here; systemd then creates the
 	// wants symlinks. Either can be blocked or overridden by a written file.
 	"/etc/systemd/system-preset/20-ignition.preset",
@@ -37,11 +39,11 @@ var bootcmdUnit string
 //go:embed commands/butane-init-runcmd.service
 var runcmdUnit string
 
-// parseCommands converts bootcmd and runcmd into scripts and oneshot units.
 func parseCommands(document map[string]any, file *ast.File) ([]base.File, []base.Unit, ValidationErrors) {
 	var files []base.File
 	var units []base.Unit
 	var problems ValidationErrors
+
 	for _, stanza := range []struct{ key, unit string }{
 		{"bootcmd", bootcmdUnit},
 		{"runcmd", runcmdUnit},
@@ -50,11 +52,13 @@ func parseCommands(document map[string]any, file *ast.File) ([]base.File, []base
 		if !exists {
 			continue
 		}
+
 		items, ok := raw.([]any)
 		if !ok {
 			problems = append(problems, problem(file, stanza.key, "must be a list"))
 			continue
 		}
+
 		// Like cloud-init: one line per command, without set -e.
 		var script strings.Builder
 		script.WriteString("#!/bin/sh\n")
@@ -70,15 +74,19 @@ func parseCommands(document map[string]any, file *ast.File) ([]base.File, []base
 			}
 			script.WriteString(command + "\n")
 		}
+
 		if len(items) == 0 {
 			continue
 		}
+
 		// Commands can embed bootstrap tokens, so only root may read them.
 		files = append(files, commandFile(commandsDir+"/"+stanza.key+".sh", script.String(), 0o700))
+
 		enabled := true
 		contents := stanza.unit
 		units = append(units, base.Unit{Name: "butane-init-" + stanza.key + ".service", Enabled: &enabled, Contents: &contents})
 	}
+
 	if len(problems) > 0 {
 		return nil, nil, problems
 	}
